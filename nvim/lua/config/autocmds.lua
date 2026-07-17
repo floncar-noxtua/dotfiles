@@ -8,6 +8,6 @@
 -- e.g. vim.api.nvim_del_augroup_by_name("lazyvim_wrap_spell")
 
 vim.api.nvim_create_user_command("Fxml", function()
-  vim.cmd("!format-xml %")
+  vim.cmd("!/Users/fran/dotfiles/bin/format-xml %")
   vim.cmd("e")
 end, {})
