@@ -7,3 +7,4 @@ set -o vi
 
 # obsutil convenience aliases
 alias obsket="obsutil-bucket"
+alias lg="lazygit"
