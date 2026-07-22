@@ -1,0 +1,6 @@
+customCommands:
+  - key: '<c-s>'
+    context: 'commits'
+    description: 'copy commit range SHAs for git diff'
+    command: "echo '{{.SelectedCommitRange.From}} {{.SelectedCommitRange.To}}' | pbcopy"
+    output: none
