@@ -11,3 +11,8 @@ vim.api.nvim_create_user_command("Fxml", function()
   vim.cmd("!/Users/fran/dotfiles/bin/format-xml %")
   vim.cmd("e")
 end, {})
+
+vim.api.nvim_create_user_command("Fjson", function()
+  vim.cmd("!/Users/fran/dotfiles/bin/format-json %")
+  vim.cmd("e")
+end, {})

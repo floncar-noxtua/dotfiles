@@ -1,0 +1,17 @@
+#!/bin/bash
+# Format JSON file in place using jq
+
+if [[ $# -eq 0 ]]; then
+  echo "Usage: format-json <file.json>"
+  exit 1
+fi
+
+file="$1"
+
+if [[ ! -f "$file" ]]; then
+  echo "Error: File '$file' not found"
+  exit 1
+fi
+
+# Format in place with 2-space indentation
+jq '.' "$file" > "$file.tmp" && mv "$file.tmp" "$file" && echo "Formatted: $file"
