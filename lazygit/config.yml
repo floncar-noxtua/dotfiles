@@ -1,0 +1,10 @@
+customCommands:
+  - key: 't'
+    context: 'global'
+    description: 'test command'
+    command: "echo 'lazygit test' > /tmp/lazygit_test.txt"
+  - key: '<c-s>'
+    context: 'commits'
+    description: 'copy commit range SHAs for git diff'
+    command: "echo '{{.SelectedCommitRange.From}} {{.SelectedCommitRange.To}}' | pbcopy"
+    output: none
