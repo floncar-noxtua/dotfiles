@@ -11,3 +11,28 @@ alias lg="lazygit"
 
 # xml formatting
 alias format-xml="$HOME/dotfiles/bin/format-xml"
+
+# PR review function
+pr-review() {
+  local pr=$1
+  if [ -z "$pr" ]; then
+    echo "Usage: pr-review <PR_NUMBER>"
+    return 1
+  fi
+
+  echo "Reviewing PR #$pr"
+  echo ""
+  gh pr view "$pr"
+  echo ""
+  read -q "view_diff?View diff? (y/n) " && echo "" && gh pr diff "$pr" || echo ""
+  read -q "add_comment?Add comment? (y/n) " || return 0
+  echo ""
+  read -p "Comment type - (c)omment, (a)pprove, (r)equest changes: " type
+  case $type in
+    a) gh pr review "$pr" --approve ;;
+    r) echo "Enter reason:"; read reason; gh pr review "$pr" --request-changes -b "$reason" ;;
+    *) echo "Enter comment:"; read comment; gh pr comment "$pr" -b "$comment" ;;
+  esac
+}
+
+alias pr="pr-review"
