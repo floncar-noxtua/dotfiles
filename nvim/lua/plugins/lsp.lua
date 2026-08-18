@@ -12,6 +12,7 @@ return {
               },
             },
           },
+          before_init = require("util.pyright").before_init,
         },
       },
     },
