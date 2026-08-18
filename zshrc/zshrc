@@ -7,7 +7,9 @@ set -o vi
 
 # obsutil convenience aliases
 alias obsket="obsutil-bucket"
+alias obsprev="$HOME/.obsutil/obs-preview.sh"
 alias lg="lazygit"
+alias ca="claude agents"
 
 # xml formatting
 alias format-xml="$HOME/dotfiles/bin/format-xml"
