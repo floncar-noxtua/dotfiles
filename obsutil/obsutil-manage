@@ -1,0 +1,287 @@
+#!/bin/bash
+
+# obsutil profile management utility
+# Handles add, list, edit, delete profiles with transparent encryption
+
+source "$HOME/.obsutil/obsutil-lib.sh"
+
+PROFILES_FILE="$OBSUTIL_CONFIG_DIR/profiles.yaml.gpg"
+GPG_PASSPHRASE="" # Session-scoped passphrase cache (in memory, not in shell history)
+
+mkdir -p "$OBSUTIL_CONFIG_DIR"
+
+# Get or prompt for GPG passphrase (once per shell session)
+_ensure_passphrase() {
+  if [[ -n "$GPG_PASSPHRASE" ]]; then
+    return 0
+  fi
+
+  if [[ ! -f "$PROFILES_FILE" ]]; then
+    # First time - setting up new encryption
+    echo "Setting up GPG encryption for profiles..."
+    read -sp "Enter a passphrase to protect your profiles: " pass1
+    echo
+    read -sp "Confirm passphrase: " pass2
+    echo
+
+    if [[ "$pass1" != "$pass2" ]]; then
+      error "Passphrases do not match"
+      return 1
+    fi
+
+    if [[ -z "$pass1" ]]; then
+      error "Passphrase cannot be empty"
+      return 1
+    fi
+
+    GPG_PASSPHRASE="$pass1"
+  else
+    read -sp "Enter passphrase to unlock profiles: " GPG_PASSPHRASE
+    echo
+  fi
+
+  if [[ -z "$GPG_PASSPHRASE" ]]; then
+    error "Passphrase required"
+    return 1
+  fi
+
+  return 0
+}
+
+# Decrypt profiles.yaml.gpg to stdout using the cached session passphrase.
+decrypt_profiles() {
+  if [[ ! -f "$PROFILES_FILE" ]]; then
+    return 1
+  fi
+
+  _ensure_passphrase || return 1
+
+  echo "$GPG_PASSPHRASE" | gpg --quiet --decrypt --pinentry-mode loopback --passphrase-fd 0 "$PROFILES_FILE" 2>/dev/null
+}
+
+# Encrypt plaintext YAML content (arg 1) and write it to profiles.yaml.gpg.
+encrypt_profiles() {
+  local content="$1"
+  local temp_file
+  temp_file=$(mktemp)
+
+  _ensure_passphrase || return 1
+
+  echo "$content" >"$temp_file"
+
+  echo "$GPG_PASSPHRASE" | gpg --quiet --symmetric --cipher-algo AES256 --pinentry-mode loopback --passphrase-fd 0 --output "$PROFILES_FILE" "$temp_file" 2>/dev/null
+  local result=$?
+
+  # Overwrite temp file with zeros before removing it, so the plaintext
+  # doesn't linger on disk.
+  dd if=/dev/zero of="$temp_file" bs=1 count=$(stat -f%z "$temp_file") 2>/dev/null
+  rm -f "$temp_file"
+
+  if [[ $result -eq 0 ]]; then
+    return 0
+  else
+    error "Failed to encrypt profiles"
+    return 1
+  fi
+}
+
+# List all profiles with nice formatting
+list_profiles() {
+  local content
+  if ! content=$(decrypt_profiles); then
+    info "No profiles found. Use 'obsutil-manage add <name>' to create one."
+    return 0
+  fi
+
+  info "Available profiles:"
+  # Profile names are lines starting with 2 spaces + a lowercase letter.
+  echo "$content" | grep "^  [a-z]" | sed 's/:$//' | sed 's/^  /  ✓ /'
+}
+
+# Add new profile (interactive)
+add_profile() {
+  local name=$1
+
+  if [[ -z "$name" ]]; then
+    read -p "Profile name: " name
+  fi
+
+  if [[ -z "$name" ]]; then
+    error "Profile name cannot be empty"
+    return 1
+  fi
+
+  if ! [[ "$name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    error "Profile name can only contain letters, numbers, dash, and underscore"
+    return 1
+  fi
+
+  read -p "Access Key ID: " key
+  read -sp "Secret Key (hidden): " secret
+  echo
+  read -p "Endpoint: " endpoint
+  read -p "Bucket name (optional): " bucket
+
+  if [[ -z "$key" ]] || [[ -z "$secret" ]] || [[ -z "$endpoint" ]]; then
+    error "All fields are required"
+    return 1
+  fi
+
+  # Get existing config, or start fresh if none exists yet.
+  local content
+  if ! content=$(decrypt_profiles); then
+    content="profiles:"
+  fi
+
+  if echo "$content" | grep -q "^  $name:"; then
+    error "Profile '$name' already exists. Use 'obsutil-manage edit $name' to modify."
+    return 1
+  fi
+
+  # YAML indentation must be exactly 2 spaces per level.
+  content="$content
+  $name:
+    key: $key
+    secret: $secret
+    endpoint: $endpoint"
+
+  if [[ -n "$bucket" ]]; then
+    content="$content
+    bucket: $bucket"
+  fi
+
+  if encrypt_profiles "$content"; then
+    success "Profile '$name' added successfully"
+  fi
+}
+
+# Edit existing profile (interactive)
+edit_profile() {
+  local name=$1
+
+  if [[ -z "$name" ]]; then
+    read -p "Profile name to edit: " name
+  fi
+
+  local content
+  if ! content=$(decrypt_profiles); then
+    error "No profiles found"
+    return 1
+  fi
+
+  if ! echo "$content" | grep -q "^  $name:"; then
+    error "Profile '$name' not found"
+    return 1
+  fi
+
+  local current_key current_secret current_endpoint current_bucket
+  current_key=$(extract_profile_field "$content" "$name" "key")
+  current_secret=$(extract_profile_field "$content" "$name" "secret")
+  current_endpoint=$(extract_profile_field "$content" "$name" "endpoint")
+  current_bucket=$(extract_profile_field "$content" "$name" "bucket")
+
+  read -p "Access Key ID [$current_key]: " key
+  key=${key:-$current_key}
+
+  # Don't echo the existing secret back to the screen; just note one is set.
+  if [[ -n "$current_secret" ]]; then
+    read -sp "Secret Key [hidden] (hidden): " secret
+  else
+    read -sp "Secret Key (hidden): " secret
+  fi
+  echo
+  secret=${secret:-$current_secret}
+
+  read -p "Endpoint [$current_endpoint]: " endpoint
+  endpoint=${endpoint:-$current_endpoint}
+
+  read -p "Bucket name [$current_bucket]: " bucket
+  bucket=${bucket:-$current_bucket}
+
+  # Remove old profile block, then append the updated one.
+  content=$(echo "$content" | sed "/^  $name:/,/^  [a-z]/d" | sed '$ s/$//')
+
+  content="$content
+  $name:
+    key: $key
+    secret: $secret
+    endpoint: $endpoint"
+
+  if [[ -n "$bucket" ]]; then
+    content="$content
+    bucket: $bucket"
+  fi
+
+  if encrypt_profiles "$content"; then
+    success "Profile '$name' updated successfully"
+  fi
+}
+
+# Delete profile with confirmation
+delete_profile() {
+  local name=$1
+
+  if [[ -z "$name" ]]; then
+    read -p "Profile name to delete: " name
+  fi
+
+  local content
+  if ! content=$(decrypt_profiles); then
+    error "No profiles found"
+    return 1
+  fi
+
+  if ! echo "$content" | grep -q "^  $name:"; then
+    error "Profile '$name' not found"
+    return 1
+  fi
+
+  read -p "Are you sure you want to delete profile '$name'? (yes/no): " confirm
+  if [[ "$confirm" != "yes" ]]; then
+    info "Cancelled"
+    return 0
+  fi
+
+  # Remove the profile block, then drop the resulting empty line and any
+  # trailing whitespace left on the last line.
+  content=$(echo "$content" | sed "/^  $name:/,/^  [a-z]*:/d" | sed '/^  $/d')
+  content=$(echo "$content" | sed '$ s/[[:space:]]*$//')
+
+  if encrypt_profiles "$content"; then
+    success "Profile '$name' deleted successfully"
+  fi
+}
+
+# Main command dispatcher
+case "$1" in
+add)
+  add_profile "$2"
+  ;;
+edit)
+  edit_profile "$2"
+  ;;
+delete | remove)
+  delete_profile "$2"
+  ;;
+list | ls)
+  list_profiles
+  ;;
+"")
+  list_profiles
+  ;;
+*)
+  info "Usage: obsutil-manage [command] [args]"
+  info ""
+  info "Commands:"
+  info "  add [name]      Add a new profile (interactive)"
+  info "  edit [name]     Edit an existing profile"
+  info "  delete [name]   Delete a profile"
+  info "  list            List all profiles"
+  info ""
+  info "Examples:"
+  info "  obsutil-manage add sk"
+  info "  obsutil-manage edit bk"
+  info "  obsutil-manage delete old-profile"
+  info "  obsutil-manage list"
+  ;;
+esac

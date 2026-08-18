@@ -1,13 +1,12 @@
-export PATH="$HOME/.local/bin:$PATH"
+export PATH="$HOME/.local/bin:$HOME/.obsutil:$PATH"
 
 set -o vi
 
 # obsutil profile management - load functions and aliases
-[ -f "$HOME/.obsutil/init.sh" ] && source "$HOME/.obsutil/init.sh"
+# (obsutil-manage and obsutil-preview are plain executables on the PATH above)
+[ -f "$HOME/.obsutil/obsutil-init.sh" ] && source "$HOME/.obsutil/obsutil-init.sh"
 
-# obsutil convenience aliases
-alias obsket="obsutil-bucket"
-alias obsprev="$HOME/.obsutil/obs-preview.sh"
+# misc convenience aliases
 alias lg="lazygit"
 alias ca="claude agents"
 

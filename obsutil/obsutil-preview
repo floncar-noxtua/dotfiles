@@ -3,10 +3,12 @@
 # Download a file from Huawei Cloud OBS and open it in nvim
 # Preserves original file extension, overrides existing files
 
+source "$HOME/.obsutil/obsutil-lib.sh"
+
 OBS_URI=${1:-}
 OUTPUT_DIR="/Users/fran/Code/legal-data/tmp"
 
-if [ -z "$OBS_URI" ]; then
+if [[ -z "$OBS_URI" ]]; then
   echo "Usage: $0 <obs://bucket/path/to/file> [custom-output-name]"
   echo ""
   echo "Examples:"
@@ -26,7 +28,7 @@ FILE_PATH="${OBS_PATH#*/}"
 EXTENSION="${FILE_PATH##*.}"
 
 # Use custom name if provided, otherwise use obsfile.<ext>
-if [ -z "$2" ]; then
+if [[ -z "$2" ]]; then
   OUTPUT_NAME="obsfile.${EXTENSION}"
 else
   OUTPUT_NAME="$2"
@@ -34,20 +36,17 @@ fi
 
 OUTPUT_PATH="${OUTPUT_DIR}/${OUTPUT_NAME}"
 
-echo "Downloading from obs://${BUCKET}/${FILE_PATH}"
-echo "Saving to: ${OUTPUT_PATH}"
+info "Downloading from obs://${BUCKET}/${FILE_PATH}"
+info "Saving to: ${OUTPUT_PATH}"
 
-# Create output directory if needed
 mkdir -p "$OUTPUT_DIR"
 
 # Download with force overwrite using obsutil-bucket.sh (quiet mode to skip key prompt)
-$HOME/.obsutil/obsutil-bucket.sh cp "obs://${BUCKET}/${FILE_PATH}" "${OUTPUT_PATH}" -f
-
-if [ $? -eq 0 ]; then
-  echo "✓ File downloaded successfully"
-  echo "Opening in nvim..."
+if "$HOME/.obsutil/obsutil-bucket.sh" cp "obs://${BUCKET}/${FILE_PATH}" "${OUTPUT_PATH}" -f; then
+  success "File downloaded successfully"
+  info "Opening in nvim..."
   nvim "${OUTPUT_PATH}"
 else
-  echo "✗ Failed to download file"
+  error "Failed to download file"
   exit 1
 fi

@@ -3,8 +3,14 @@
 # obsutil initialization script
 # Source this file from ~/.zshrc or ~/.bashrc to set up all obsutil functions
 # This is the ONLY file you need to source - it loads all utilities
+#
+# obsutil-manage and obsutil-preview are plain executables on $PATH (see
+# ~/.obsutil added to PATH in zshrc) and need no wrapper here. Only
+# obsutil-default-profile and obsutil-bucket/obsket are defined as functions,
+# since the former exports vars into this session and can't do that as a
+# subprocess.
 
-OBSUTIL_CONFIG_DIR="$HOME/.obsutil"
+source "$HOME/.obsutil/obsutil-lib.sh"
 
 # obsutil-default-profile: Set the default profile for obsutil operations
 # Usage: obsutil-default-profile <profile-name>
@@ -15,56 +21,49 @@ OBSUTIL_CONFIG_DIR="$HOME/.obsutil"
 obsutil-default-profile() {
   local profile=$1
 
-  if [ -z "$profile" ]; then
-    echo "Usage: obsutil-default-profile <profile>"
-    echo ""
-    "$OBSUTIL_CONFIG_DIR/manage.sh" list
+  if [[ -z "$profile" ]]; then
+    info "Usage: obsutil-default-profile <profile>"
+    info ""
+    "$OBSUTIL_CONFIG_DIR/obsutil-manage" list
     return 1
   fi
 
   # Decrypt config and extract the specific profile
-  local config=$(gpg --quiet --decrypt "$OBSUTIL_CONFIG_DIR/profiles.yaml.gpg" 2>/dev/null)
-  if [ $? -ne 0 ]; then
-    echo "Error: Could not decrypt profiles (file not found or wrong passphrase)"
+  local config
+  if ! config=$(gpg --quiet --decrypt "$OBSUTIL_CONFIG_DIR/profiles.yaml.gpg" 2>/dev/null); then
+    error "Could not decrypt profiles (file not found or wrong passphrase)"
     return 1
   fi
 
   # Extract key, secret, and endpoint for the requested profile
-  # sed explanation:
-  #   -n: suppress automatic printing
-  #   /^  $profile:/,/^  [a-z]/p: print range from profile name to next profile
-  #   grep: filter to specific field
-  #   awk: extract the value (second field)
-  local key=$(echo "$config" | sed -n "/^  $profile:/,/^  [a-z]/p" | grep "key:" | awk '{print $2}')
-  local secret=$(echo "$config" | sed -n "/^  $profile:/,/^  [a-z]/p" | grep "secret:" | awk '{print $2}')
-  local endpoint=$(echo "$config" | sed -n "/^  $profile:/,/^  [a-z]/p" | grep "endpoint:" | awk '{print $2}')
+  local key secret endpoint bucket
+  key=$(extract_profile_field "$config" "$profile" "key")
+  secret=$(extract_profile_field "$config" "$profile" "secret")
+  endpoint=$(extract_profile_field "$config" "$profile" "endpoint")
 
-  if [ -z "$key" ]; then
-    echo "Error: Profile '$profile' not found"
+  if [[ -z "$key" ]]; then
+    error "Profile '$profile' not found"
     return 1
   fi
 
-  # Find obsutil binary
-  local obsutil_bin="/Users/fran/Code/obsutil_darwin_amd64_5.8.3/obsutil"
-  if [ ! -f "$obsutil_bin" ]; then
-    echo "Error: obsutil binary not found at $obsutil_bin"
+  if [[ ! -f "$OBSUTIL_BIN" ]]; then
+    error "obsutil binary not found at $OBSUTIL_BIN"
     return 1
   fi
 
   # Configure obsutil with this profile's credentials, updating ~/.obsutilconfig
-  "$obsutil_bin" config -i="$key" -k="$secret" -e="$endpoint" >/dev/null 2>&1
-  if [ $? -ne 0 ]; then
-    echo "Error: Failed to update obsutil config with profile credentials"
+  if ! "$OBSUTIL_BIN" config -i="$key" -k="$secret" -e="$endpoint" >/dev/null 2>&1; then
+    error "Failed to update obsutil config with profile credentials"
     return 1
   fi
 
   # Extract bucket name from profile if available
-  local bucket=$(echo "$config" | sed -n "/^  $profile:/,/^  [a-z]/p" | grep "bucket:" | awk '{print $2}')
+  bucket=$(extract_profile_field "$config" "$profile" "bucket")
 
   # Save current profile and bucket to unencrypted file
   # Format: profile_name:bucket_name
   # This allows obsutil-bucket to use current profile without decrypting
-  if [ -n "$bucket" ]; then
+  if [[ -n "$bucket" ]]; then
     echo "$profile:$bucket" >"$OBSUTIL_CONFIG_DIR/current-profile.conf"
   else
     echo "$profile" >"$OBSUTIL_CONFIG_DIR/current-profile.conf"
@@ -76,19 +75,8 @@ obsutil-default-profile() {
   export OBSUTIL_ENDPOINT="$endpoint"
   export OBSUTIL_CURRENT_PROFILE="$profile"
 
-  echo "✓ Connected to profile: $profile"
-  echo "  Endpoint: $endpoint"
-}
-
-# obsutil-manage: Profile management wrapper
-# Usage: obsutil-manage [add|edit|delete|list] [profile-name]
-obsutil-manage() {
-  "$OBSUTIL_CONFIG_DIR/manage.sh" "$@"
-}
-
-# obsutil-profiles: Quick list profiles shortcut
-obsutil-profiles() {
-  "$OBSUTIL_CONFIG_DIR/manage.sh" list
+  success "Connected to profile: $profile"
+  info "  Endpoint: $endpoint"
 }
 
 # obsutil-bucket: Smart bucket wrapper
@@ -107,6 +95,12 @@ obsutil-bucket() {
   export OBSUTIL_ENDPOINT="$OBSUTIL_ENDPOINT"
 
   "$OBSUTIL_CONFIG_DIR/obsutil-bucket.sh" "$@"
+}
+
+# obsket: short name for obsutil-bucket, defined as a real function (not a
+# shell alias) so it behaves consistently wherever functions are expected
+obsket() {
+  obsutil-bucket "$@"
 }
 
 # Export the config directory path in case scripts need it

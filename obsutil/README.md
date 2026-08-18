@@ -6,11 +6,13 @@ Encrypted profile management for obsutil with password protection.
 
 All files are in `~/.obsutil/`:
 - `profiles.yaml.gpg` - Your encrypted profiles (created on first use)
-- `init.sh` - Initialization script (sourced from ~/.zshrc)
-- `manage.sh` - Profile management CLI
+- `obsutil-init.sh` - Initialization script (sourced from ~/.zshrc)
+- `obsutil-manage` - Profile management CLI
 - `README.md` - This file
 
-Your `~/.zshrc` now sources `init.sh` automatically on shell startup.
+Your `~/.zshrc` now sources `obsutil-init.sh` automatically on shell startup, and adds
+`~/.obsutil` to `$PATH` so `obsutil-manage` and `obsutil-preview` run directly as commands
+(no wrapper functions needed for those two).
 
 ## Quick Start
 
@@ -57,14 +59,15 @@ obsket other-profile ls
 
 ## Commands
 
-### obsutil-bucket (alias: `obsket`)
+### obsutil-bucket (short name: `obsket`)
 
 Smart wrapper that intelligently manages bucket access with different profiles.
+`obsket` is a real shell function (defined in `obsutil-init.sh`), not a shell alias.
 
 **Syntax:**
 ```bash
 obsutil-bucket [-p=profile-name] <command> [args...]
-# Alias: obsket [-p=profile-name] <command> [args...]
+# Short name: obsket [-p=profile-name] <command> [args...]
 ```
 
 **Supported commands:**
@@ -100,7 +103,7 @@ obsket ls obs://data-beck-sk
 - ✅ **-p differs from current**: Prompts for passphrase, injects those credentials temporarily
 - ✅ **Never modifies config**: Temporary switching, doesn't affect `./obsutil config` or `current-profile.conf`
 - ✅ **Explicit bucket required**: You must specify the bucket path (e.g., `obs://bucket-name`)
-- ✅ **Short alias**: Use `obsket` for quick access
+- ✅ **Short name**: Use `obsket` for quick access
 
 **How it works:**
 1. `obsutil-default-profile beck-sk` → runs `./obsutil config -i=... -k=... -e=...` and saves "beck-sk:bucket-name" to `~/.obsutil/current-profile.conf`
@@ -171,13 +174,6 @@ obsutil-default-profile
 
 # ~/.obsutilconfig contains (readable by obsutil):
 # endpoint, ak (access key), sk (secret key), and other config
-```
-
-### obsutil-profiles
-
-```bash
-# Quick shortcut to list profiles
-obsutil-profiles
 ```
 
 ## Security
@@ -272,9 +268,11 @@ Are you sure you want to delete profile 'old-profile'? (yes/no): yes
 ```
 ~/.obsutil/
 ├── README.md              # This file
-├── init.sh               # Initialization - loads functions & aliases
-├── manage.sh             # Profile management CLI tool
-├── obsutil-bucket.sh     # Smart bucket wrapper script
+├── obsutil-init.sh        # Initialization - loads obsutil-default-profile/obsutil-bucket/obsket
+├── obsutil-manage         # Profile management CLI (run directly via $PATH)
+├── obsutil-bucket.sh      # Smart bucket wrapper script (run via the obsutil-bucket/obsket functions)
+├── obsutil-preview        # Download+preview a single object in nvim (run directly via $PATH)
+├── obsutil-lib.sh         # Shared constants and helpers
 ├── profiles.yaml.gpg     # Your encrypted profiles (created on first use)
 └── current-profile.conf  # Unencrypted: stores current profile name and bucket
                           # Format: profile-name:bucket-name
@@ -349,4 +347,4 @@ Add to `.gitignore`:
 .obsutil/profiles.yaml.gpg
 ```
 
-You can safely version control `init.sh` and `manage.sh` - they're generic.
+You can safely version control `obsutil-init.sh` and `obsutil-manage` - they're generic.
