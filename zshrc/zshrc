@@ -1,5 +1,6 @@
 export PATH="$HOME/.local/bin:$HOME/.obsutil:$PATH"
 
+# vi-style line editing
 set -o vi
 
 # obsutil profile management - load functions and aliases
@@ -25,11 +26,18 @@ pr-review() {
   echo ""
   gh pr view "$pr"
   echo ""
-  read -q "view_diff?View diff? (y/n) " && echo "" && gh pr diff "$pr" || echo ""
+
+  if read -q "view_diff?View diff? (y/n) "; then
+    echo ""
+    gh pr diff "$pr"
+  else
+    echo ""
+  fi
+
   read -q "add_comment?Add comment? (y/n) " || return 0
   echo ""
-  read -p "Comment type - (c)omment, (a)pprove, (r)equest changes: " type
-  case $type in
+  read "type?Comment type - (c)omment, (a)pprove, (r)equest changes: "
+  case "$type" in
     a) gh pr review "$pr" --approve ;;
     r) echo "Enter reason:"; read reason; gh pr review "$pr" --request-changes -b "$reason" ;;
     *) echo "Enter comment:"; read comment; gh pr comment "$pr" -b "$comment" ;;
