@@ -32,3 +32,24 @@ vim.keymap.set("n", "<leader>yp", function()
 	vim.fn.setreg("+", filepath)
 	vim.notify("Copied: " .. filepath, vim.log.levels.INFO)
 end, { desc = "Copy buffer file path" })
+
+-- Toggle blink.cmp's auto-popup while typing (see lua/plugins/blink.lua for
+-- the vim.g.cmp_auto_show flag this reads/writes). Registered as a proper
+-- Snacks toggle so it shows up in the <leader>u which-key group like
+-- LazyVim's other ui toggles. "p" was already taken by LazyVim's mini.pairs
+-- toggle (lazyvim/util/mini.lua), so this uses the free "y" slot instead.
+Snacks.toggle
+	.new({
+		name = "Autocomplete Popup",
+		get = function()
+			return vim.g.cmp_auto_show
+		end,
+		set = function(state)
+			vim.g.cmp_auto_show = state
+			if not state then
+				-- Hide it now instead of waiting for the next keystroke.
+				require("blink.cmp").hide()
+			end
+		end,
+	})
+	:map("<leader>uy")
