@@ -16,3 +16,17 @@ vim.api.nvim_create_user_command("Fjson", function()
   vim.cmd("!/Users/fran/dotfiles/bin/format-json %")
   vim.cmd("e")
 end, {})
+
+-- Reopen the PR diff for the current worktree (base branch is written by
+-- the pr-worktree script into this worktree's git-dir).
+vim.api.nvim_create_user_command("PRDiff", function()
+  local git_dir = vim.fn.systemlist("git rev-parse --git-dir")[1]
+  local f = io.open(git_dir .. "/PR_BASE", "r")
+  if not f then
+    vim.notify("No PR_BASE file - run pr-worktree/prw from this worktree first", vim.log.levels.ERROR)
+    return
+  end
+  local base = f:read("*l")
+  f:close()
+  vim.cmd("DiffviewOpen origin/" .. base .. "...HEAD")
+end, {})

@@ -1,0 +1,38 @@
+#!/bin/bash
+# Create/reuse a git worktree for a PR, check it out via gh, and open the
+# diff directly in nvim (diffview.nvim) against the correct base branch.
+
+if [[ $# -eq 0 ]]; then
+  echo "Usage: pr-worktree <PR_NUMBER>"
+  exit 1
+fi
+pr_number="$1"
+
+repo_root=$(git rev-parse --show-toplevel) || exit 1
+
+pr_info=$(gh pr view "$pr_number" --json baseRefName,state -q '.baseRefName + " " + .state') || exit 1
+base_branch="${pr_info% *}"
+pr_state="${pr_info#* }"
+
+if [[ "$pr_state" != "OPEN" ]]; then
+  echo "PR #$pr_number is $pr_state, not OPEN - its branch may already be merged/deleted. Nothing to check out." >&2
+  exit 1
+fi
+
+worktree_dir="${repo_root}-pr${pr_number}"
+
+git fetch origin "$base_branch"
+
+if [[ ! -d "$worktree_dir" ]]; then
+  git worktree add -b "pr-${pr_number}-base" "$worktree_dir" "origin/${base_branch}"
+fi
+
+cd "$worktree_dir" || exit 1
+if ! gh pr checkout "$pr_number"; then
+  echo "gh pr checkout failed for PR #$pr_number - see error above (branch may already be checked out elsewhere, or deleted)" >&2
+  exit 1
+fi
+
+echo "$base_branch" > "$(git rev-parse --git-dir)/PR_BASE"
+
+nvim -c "DiffviewOpen origin/${base_branch}...HEAD"

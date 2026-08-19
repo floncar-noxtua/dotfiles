@@ -14,6 +14,9 @@ vim.keymap.set("n", "<leader>gd", "<cmd>Gvdiffsplit<CR>", { desc = "Git diff cur
 -- Browse commit history for current file
 vim.keymap.set("n", "<leader>gl", "<cmd>0Gclog<CR>", { desc = "Git log for current file" })
 
+-- Reopen the PR diff for the current worktree (see :PRDiff / pr-worktree)
+vim.keymap.set("n", "<leader>gp", "<cmd>PRDiff<CR>", { desc = "Reopen PR diff" })
+
 -- Toggle between nightfox and vscode themes
 vim.g.current_theme = vim.g.current_theme or "nightfox"
 vim.keymap.set("n", "<leader>tt", function()
