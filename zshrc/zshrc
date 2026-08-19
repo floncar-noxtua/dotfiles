@@ -13,6 +13,8 @@ alias ca="claude agents"
 
 # xml formatting
 alias format-xml="$HOME/dotfiles/bin/format-xml"
+# json formatting
+alias format-json="$HOME/dotfiles/bin/format-json"
 
 # PR worktree review - create a worktree, checkout the PR, open diffview
 alias prw="$HOME/dotfiles/bin/pr-worktree"
