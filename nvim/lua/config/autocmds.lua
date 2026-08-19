@@ -7,6 +7,23 @@
 -- Or remove existing autocmds by their group name (which is prefixed with `lazyvim_` for the defaults)
 -- e.g. vim.api.nvim_del_augroup_by_name("lazyvim_wrap_spell")
 
+-- Make word-level diff changes and closed folds visually distinct,
+-- regardless of colorscheme. Some themes (e.g. nightfox) give DiffChange
+-- and Folded nearly identical backgrounds, so a changed line and a
+-- collapsed context region look the same in diffview.nvim.
+local function boost_diff_hl()
+  vim.api.nvim_set_hl(0, "DiffText", { reverse = true, bold = true })
+  vim.api.nvim_set_hl(0, "Folded", { bg = "NONE", italic = true })
+end
+
+vim.api.nvim_create_autocmd("ColorScheme", {
+  group = vim.api.nvim_create_augroup("diff_hl_contrast", { clear = true }),
+  callback = boost_diff_hl,
+})
+-- This file loads on VeryLazy, after the initial colorscheme is already
+-- applied, so apply once now too.
+boost_diff_hl()
+
 vim.api.nvim_create_user_command("Fxml", function()
   vim.cmd("!/Users/fran/dotfiles/bin/format-xml %")
   vim.cmd("e")
