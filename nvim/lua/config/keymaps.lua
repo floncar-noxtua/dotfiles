@@ -36,6 +36,40 @@ vim.keymap.set("n", "<leader>yp", function()
 	vim.notify("Copied: " .. filepath, vim.log.levels.INFO)
 end, { desc = "Copy buffer file path" })
 
+-- Copy the selected lines to clipboard, prefixed with an @-path + line range
+-- header, for pasting into an LLM chat (the @ makes chat UIs attach the file).
+vim.keymap.set("v", "<leader>yp", function()
+	local filepath = vim.fn.expand("%:p")
+	local start_line = vim.fn.line("v")
+	local end_line = vim.fn.line(".")
+	if start_line > end_line then
+		start_line, end_line = end_line, start_line
+	end
+	-- Whole lines, not the exact charwise selection: the header talks in line
+	-- numbers, and keeping the leading indentation matters for the LLM.
+	local lines = vim.api.nvim_buf_get_lines(0, start_line - 1, end_line, false)
+	local range = start_line == end_line and ("line: " .. start_line)
+		or ("lines: " .. start_line .. "-" .. end_line)
+	local header = "@" .. filepath .. " " .. range
+	local body = table.concat(lines, "\n")
+	-- Fence must be longer than the longest backtick run inside the snippet,
+	-- or yanking from markdown / a docstring would close the block early.
+	local longest = 0
+	for run in body:gmatch("`+") do
+		longest = math.max(longest, #run)
+	end
+	local fence = string.rep("`", math.max(3, longest + 1))
+	-- Header outside the fence: it's metadata, and chat UIs only pick up the
+	-- @path for file attachment when it's plain text.
+	vim.fn.setreg(
+		"+",
+		table.concat({ header, fence .. vim.bo.filetype, body, fence, "" }, "\n")
+	)
+	-- Leave visual mode so it behaves like a normal yank.
+	vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "n", false)
+	vim.notify("Copied: " .. header, vim.log.levels.INFO)
+end, { desc = "Copy selection with file path + line numbers" })
+
 -- Toggle blink.cmp's auto-popup while typing (see lua/plugins/blink.lua for
 -- the vim.g.cmp_auto_show flag this reads/writes). Registered as a proper
 -- Snacks toggle so it shows up in the <leader>u which-key group like
