@@ -195,20 +195,4 @@ return {
       },
     },
   },
-
-  -- configure snacks.nvim bigfile thresholds
-  -- Disable notification for bigfile detection, increase line_length threshold
-  -- Default: size=1.5MB, line_length=1000 chars. Single-line XML/JSON files would trigger warning
-  -- See: https://github.com/folke/snacks.nvim/blob/main/docs/bigfile.md
-  {
-    "folke/snacks.nvim",
-    opts = {
-      bigfile = {
-        enabled = true,
-        size = 1.5 * 1024 * 1024,
-        line_length = 20000,
-        notify = false,
-      },
-    },
-  },
 }
