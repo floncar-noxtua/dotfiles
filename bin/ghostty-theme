@@ -1,0 +1,66 @@
+#!/bin/bash
+# Flip Ghostty and tmux between light and dark together.
+
+set -euo pipefail
+
+CONFIG="$HOME/dotfiles/ghostty/config"
+TMUX_THEME_LINK="$HOME/.tmux-theme.conf"
+# Modus Operandi Tinted over Catppuccin Latte: Latte's ANSI colours only managed
+# 2.31:1 against its background, below the 4.5:1 WCAG AA floor and too washed
+# out to read comfortably.
+LIGHT="Modus Operandi Tinted"
+DARK="Catppuccin Frappe"
+AUTO="light:$LIGHT,dark:$DARK"
+
+if [[ ! -f "$CONFIG" ]]; then
+  echo "Error: Ghostty config not found at $CONFIG" >&2
+  exit 1
+fi
+
+current=$(sed -n 's/^theme = //p' "$CONFIG")
+
+macos_is_dark() {
+  [[ "$(defaults read -g AppleInterfaceStyle 2>/dev/null)" == "Dark" ]]
+}
+
+mode="${1:-toggle}"
+
+case "$mode" in
+  light) new="$LIGHT" ; variant="light" ;;
+  dark)  new="$DARK"  ; variant="dark"  ;;
+  auto)
+    new="$AUTO"
+    if macos_is_dark; then variant="dark"; else variant="light"; fi
+    ;;
+  toggle)
+    if [[ "$current" == "$LIGHT" ]]; then
+      new="$DARK" ; variant="dark"
+    else
+      new="$LIGHT" ; variant="light"
+    fi
+    ;;
+  *)
+    echo "Usage: ghostty-theme [light|dark|auto|toggle]"
+    echo "  light  - Ghostty: $LIGHT, tmux: light"
+    echo "  dark   - Ghostty: $DARK, tmux: dark"
+    echo "  auto   - Ghostty follows macOS; tmux pinned to current appearance"
+    echo "  toggle - flip between light and dark (default action)"
+    exit 1
+    ;;
+esac
+
+sed -i '' "s|^theme = .*|theme = $new|" "$CONFIG"
+echo "Ghostty theme set to: $new"
+
+ln -sfn "$HOME/dotfiles/tmux/theme-$variant.conf" "$TMUX_THEME_LINK"
+echo "tmux theme set to: $variant"
+if [[ -n "${TMUX:-}" ]] || tmux has-session 2>/dev/null; then
+  tmux source-file "$TMUX_THEME_LINK"
+  echo "  (applied to running tmux server)"
+fi
+
+if [[ "$mode" == "auto" ]]; then
+  echo "Note: tmux has no auto mode; rerun gtheme after switching macOS appearance."
+fi
+
+echo "Reload Ghostty with Cmd+Shift+, to apply."

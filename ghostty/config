@@ -3,4 +3,5 @@ background-blur-radius = 20
 mouse-hide-while-typing = true
 window-decoration = false
 macos-option-as-alt = true
-theme = Catppuccin Frappe
+# Managed by `gtheme` (bin/ghostty-theme) - it rewrites this line
+theme = Modus Operandi Tinted

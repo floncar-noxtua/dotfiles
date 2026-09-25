@@ -18,3 +18,6 @@ alias format-json="$HOME/dotfiles/bin/format-json"
 
 # PR worktree review - create a worktree, checkout the PR, open diffview
 alias prw="$HOME/dotfiles/bin/pr-worktree"
+
+# Ghostty theme toggle (light/dark/auto) - see `ghostty-theme` with no args for usage
+alias gtheme="$HOME/dotfiles/bin/ghostty-theme"
