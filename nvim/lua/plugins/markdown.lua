@@ -24,6 +24,8 @@ return {
 
   -- Render markdown images inline in the buffer (needs Kitty-graphics-protocol
   -- terminal like Ghostty, plus `imagemagick` installed on the system).
+  -- Disabled by default: `identify` crashes on some broken/remote images.
+  -- Toggle at runtime with :ImageToggle.
   {
     "3rd/image.nvim",
     opts = {
@@ -33,5 +35,20 @@ return {
         markdown = { enabled = true, filetypes = { "markdown" } },
       },
     },
+    config = function(_, opts)
+      local image = require("image")
+      image.setup(opts)
+      image.disable()
+
+      vim.api.nvim_create_user_command("ImageToggle", function()
+        if image.is_enabled() then
+          image.disable()
+          vim.notify("image.nvim disabled")
+        else
+          image.enable()
+          vim.notify("image.nvim enabled")
+        end
+      end, { desc = "Toggle image.nvim inline image rendering" })
+    end,
   },
 }
