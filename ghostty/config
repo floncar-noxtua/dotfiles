@@ -3,5 +3,7 @@ background-blur-radius = 20
 mouse-hide-while-typing = true
 window-decoration = false
 macos-option-as-alt = true
-# Managed by `gtheme` (bin/ghostty-theme) - it rewrites this line
-theme = Modus Operandi Tinted
+# Ghostty picks light or dark from the macOS appearance and switches live --
+# no reload needed -- and notifies tmux/nvim via DEC mode 2031 when it does.
+# Switch light/dark in System Settings > Appearance (or set it to Auto).
+theme = light:Modus Operandi Tinted,dark:Catppuccin Frappe
