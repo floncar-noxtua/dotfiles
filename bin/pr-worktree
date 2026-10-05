@@ -24,7 +24,7 @@ worktree_dir="${repo_root}-pr${pr_number}"
 git fetch origin "$base_branch"
 
 if [[ ! -d "$worktree_dir" ]]; then
-  git worktree add -b "pr-${pr_number}-base" "$worktree_dir" "origin/${base_branch}"
+  git worktree add --detach "$worktree_dir" "origin/${base_branch}"
 fi
 
 cd "$worktree_dir" || exit 1
