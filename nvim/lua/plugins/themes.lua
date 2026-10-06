@@ -29,6 +29,11 @@ return {
       vim.api.nvim_create_autocmd("OptionSet", {
         pattern = "background",
         group = vim.api.nvim_create_augroup("theme_sync", { clear = true }),
+        -- Autocommands do not nest by default, so the ColorScheme event that
+        -- :colorscheme fires from in here would be swallowed and every plugin
+        -- that repaints itself on ColorScheme (bufferline, lualine) would keep
+        -- the old variant's colours.
+        nested = true,
         callback = pick,
       })
     end,
@@ -37,4 +42,14 @@ return {
   -- LazyVim owns the initial colorscheme load; hand it the same chooser so
   -- startup picks the variant matching whatever the terminal already reported.
   { "LazyVim/LazyVim", opts = { colorscheme = pick } },
+
+  -- bufferline paints its own highlights and repaints them on ColorScheme, but
+  -- by default ('themable' = true) it defines them with :highlight default, so
+  -- the repaint cannot overwrite groups that already exist. They do already
+  -- exist: nightfox's compiled colorscheme only runs "hi clear" when
+  -- vim.g.colors_name is set, and on this switch it is nil, so the previous
+  -- variant's BufferLine* groups survive and win. Turning 'themable' off makes
+  -- bufferline set them unconditionally. Nothing here themes bufferline, so
+  -- there is nothing to give up.
+  { "akinsho/bufferline.nvim", opts = { options = { themable = false } } },
 }
