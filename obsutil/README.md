@@ -12,7 +12,7 @@ All files are in `~/.obsutil/`:
 
 Your `~/.zshrc` now sources `obsutil-init.sh` automatically on shell startup, and adds
 `~/.obsutil` to `$PATH` so `obsutil-manage` and `obsutil-preview` run directly as commands
-(no wrapper functions needed for those two).
+(no wrapper functions needed for those two; `obsprv` is a short-name function for `obsutil-preview`).
 
 ## Quick Start
 
@@ -132,6 +132,8 @@ obsutil-manage
 ```
 
 ### obsutil-default-profile
+
+Short name: `obsdef`.
 
 Sets the default profile for `./obsutil` commands and profile-aware operations.
 
@@ -268,10 +270,10 @@ Are you sure you want to delete profile 'old-profile'? (yes/no): yes
 ```
 ~/.obsutil/
 ├── README.md              # This file
-├── obsutil-init.sh        # Initialization - loads obsutil-default-profile/obsutil-bucket/obsket
+├── obsutil-init.sh        # Initialization - loads obsutil-default-profile/obsdef/obsutil-bucket/obsket/obsprv
 ├── obsutil-manage         # Profile management CLI (run directly via $PATH)
 ├── obsutil-bucket.sh      # Smart bucket wrapper script (run via the obsutil-bucket/obsket functions)
-├── obsutil-preview        # Download+preview a single object in nvim (run directly via $PATH)
+├── obsutil-preview        # Download+preview a single object in nvim (run directly via $PATH, or via obsprv)
 ├── obsutil-lib.sh         # Shared constants and helpers
 ├── profiles.yaml.gpg     # Your encrypted profiles (created on first use)
 └── current-profile.conf  # Unencrypted: stores current profile name and bucket
@@ -305,8 +307,9 @@ An alias `obsutil` is also created that includes these credentials automatically
 | Tool | Purpose | Example |
 |------|---------|---------|
 | **obsutil-manage** | Add/edit/delete profiles | `obsutil-manage add prod` |
-| **obsutil-default-profile** | Set which profile obsutil uses | `obsutil-default-profile prod` |
+| **obsutil-default-profile (obsdef)** | Set which profile obsutil uses | `obsdef prod` |
 | **obsutil-bucket (obsket)** | Run commands with explicit bucket path | `obsket ls obs://prod-bucket` |
+| **obsutil-preview (obsprv)** | Download one object and open it in nvim | `obsprv obs://prod-bucket/file.json` |
 | **./obsutil** | Direct access (credentials from config) | `./obsutil ls` |
 
 **Workflow:**

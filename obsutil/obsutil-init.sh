@@ -5,10 +5,10 @@
 # This is the ONLY file you need to source - it loads all utilities
 #
 # obsutil-manage and obsutil-preview are plain executables on $PATH (see
-# ~/.obsutil added to PATH in zshrc) and need no wrapper here. Only
-# obsutil-default-profile and obsutil-bucket/obsket are defined as functions,
-# since the former exports vars into this session and can't do that as a
-# subprocess.
+# ~/.obsutil added to PATH in zshrc) and need no wrapper here, except the
+# obsprv short name below. obsutil-default-profile and obsutil-bucket/obsket
+# are defined as functions, since the former exports vars into this session
+# and can't do that as a subprocess.
 
 source "$HOME/.obsutil/obsutil-lib.sh"
 
@@ -79,6 +79,12 @@ obsutil-default-profile() {
   info "  Endpoint: $endpoint"
 }
 
+# obsdef: short name for obsutil-default-profile, a function for the same
+# reason as obsket below
+obsdef() {
+  obsutil-default-profile "$@"
+}
+
 # obsutil-bucket: Smart bucket wrapper
 # Usage: obsutil-bucket [-p=profile-name] <command> [args...]
 #
@@ -101,6 +107,12 @@ obsutil-bucket() {
 # shell alias) so it behaves consistently wherever functions are expected
 obsket() {
   obsutil-bucket "$@"
+}
+
+# obsprv: short name for obsutil-preview, a function for the same reason as
+# obsket above
+obsprv() {
+  "$OBSUTIL_CONFIG_DIR/obsutil-preview" "$@"
 }
 
 # Export the config directory path in case scripts need it
