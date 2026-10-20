@@ -3,6 +3,9 @@ export PATH="$HOME/.local/bin:$HOME/.obsutil:$PATH"
 # vi-style line editing
 set -o vi
 
+# prompt: green user@host, blue folder, % turns red when the last command failed
+PROMPT='%F{green}%n@mbp%f %F{blue}%1~%f %(?.%F{white}.%F{red})%#%f '
+
 # obsutil profile management - load functions and aliases
 # (obsutil-manage and obsutil-preview are plain executables on the PATH above)
 [ -f "$HOME/.obsutil/obsutil-init.sh" ] && source "$HOME/.obsutil/obsutil-init.sh"
