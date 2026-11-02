@@ -1,0 +1,140 @@
+#!/bin/zsh
+# Passphrase-encrypted KEY=value store for Claude agent sessions.
+# Plaintext and passphrase only travel through pipes into gpg, never temp files
+# or argv; `claude agents` gets the variables via --settings because the daemon
+# hands dispatched sessions pre-spawned processes that never see this shell's env.
+
+emulate -L zsh
+setopt err_return no_unset pipe_fail
+umask 077
+
+store=${AGENTENV_FILE:-$HOME/.claude/agents.env.gpg}
+typeset -A vars
+pass=
+
+usage() {
+  cat <<'EOF'
+Usage: agentenv <command>
+  agents [args...]    start `claude agents` with the stored variables
+  run <cmd> [args...] run any command with the stored variables exported
+  list                list key names (values are never displayed)
+  add KEY             add or replace KEY; value read hidden from the terminal,
+                      or from stdin when piped (e.g. `pbpaste | agentenv add KEY`)
+  rm KEY...           remove keys
+  passwd              change the passphrase
+Store: $AGENTENV_FILE, default ~/.claude/agents.env.gpg
+EOF
+}
+
+die() { print -u2 -r -- "agentenv: $*"; exit 1 }
+
+ask() {  # ask VAR PROMPT
+  local reply
+  read -rs "reply?$2" </dev/tty || die "no terminal to read from"
+  print >/dev/tty
+  typeset -g "$1=$reply"
+}
+
+new_pass() {
+  local again
+  ask pass "New passphrase: "
+  [[ -n $pass ]] || die "empty passphrase"
+  ask again "Repeat passphrase: "
+  [[ $pass == "$again" ]] || die "passphrases do not match"
+}
+
+gpg_pass() {  # gpg with the passphrase on fd 3, nothing cached in gpg-agent
+  gpg --batch --quiet --yes --no-symkey-cache --pinentry-mode loopback \
+    --passphrase-fd 3 "$@" 3< <(print -rn -- "$pass")
+}
+
+load() {  # load [create]: decrypt the store into $vars
+  if [[ ! -f $store ]]; then
+    [[ ${1:-} == create ]] || die "no store at $store - add a key first"
+    print -u2 "Creating $store"
+    new_pass
+    return
+  fi
+  ask pass "Passphrase for $store: "
+  local plain line
+  plain=$(gpg_pass --decrypt "$store" 2>/dev/null) || die "wrong passphrase or unreadable store"
+  for line in ${(f)plain}; do
+    vars[${line%%=*}]=${line#*=}
+  done
+}
+
+save() {
+  local k
+  for k in ${(ok)vars}; do print -r -- "$k=${vars[$k]}"; done \
+    | gpg_pass --symmetric --cipher-algo AES256 --output "$store.tmp" \
+    || { rm -f "$store.tmp"; die "encryption failed"; }
+  mv "$store.tmp" "$store"
+}
+
+settings_json() {  # values go to jq on stdin, not argv
+  local k
+  for k in ${(ok)vars}; do print -r -- "$k=${vars[$k]}"; done \
+    | jq -Rn '{env: ([inputs | capture("^(?<k>[^=]+)=(?<v>.*)$") | {(.k): .v}] | add // {})}'
+}
+
+valid_key() {
+  [[ $1 =~ '^[A-Za-z_][A-Za-z0-9_]*$' ]] || die "invalid key name: $1"
+}
+
+cmd=${1:-}
+(( $# )) && shift
+
+case $cmd in
+  agents)
+    load
+    exec claude agents --settings "$(settings_json)" "$@"
+    ;;
+  run)
+    (( $# )) || die "usage: agentenv run <cmd> [args...]"
+    load
+    for k in ${(k)vars}; do export "$k=${vars[$k]}"; done
+    exec "$@"
+    ;;
+  list)
+    load
+    print -rl -- ${(ok)vars}
+    ;;
+  add)
+    (( $# == 1 )) || die "usage: agentenv add KEY"
+    valid_key "$1"
+    load create
+    if [[ -t 0 ]]; then
+      ask value "Value for $1: "
+    else
+      value=$(cat)
+    fi
+    [[ $value != *$'\n'* ]] || die "multi-line values are not supported"
+    action=added; (( ${+vars[$1]} )) && action=replaced
+    vars[$1]=$value
+    save
+    print -u2 "$action $1"
+    ;;
+  rm)
+    (( $# )) || die "usage: agentenv rm KEY..."
+    load
+    for k in "$@"; do
+      (( ${+vars[$k]} )) || die "no such key: $k (nothing removed)"
+      unset "vars[$k]"
+    done
+    save
+    print -u2 "removed $*"
+    ;;
+  passwd)
+    load
+    new_pass
+    save
+    print -u2 "passphrase changed"
+    ;;
+  ''|-h|--help|help)
+    usage
+    ;;
+  *)
+    usage >&2
+    exit 1
+    ;;
+esac

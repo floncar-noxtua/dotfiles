@@ -12,7 +12,9 @@ PROMPT='%F{green}%n@mbp%f %F{blue}%1~%f %(?.%F{white}.%F{red})%#%f '
 
 # misc convenience aliases
 alias lg="lazygit"
-alias ca="claude agents"
+alias ca="$HOME/dotfiles/bin/agentenv agents"
+alias agentenv="$HOME/dotfiles/bin/agentenv"
+
 
 # xml formatting
 alias format-xml="$HOME/dotfiles/bin/format-xml"
