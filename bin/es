@@ -1,0 +1,69 @@
+#!/bin/bash
+# Read-only Elasticsearch client for the test cluster. Auth comes from
+# $ES_TEST_API_KEY and is fed to curl via -K so the key never appears in argv.
+# Writes are refused here as a second layer; the key itself should be read-only.
+
+usage() {
+  echo "Usage: es <GET|HEAD|POST> <path> [curl args...]"
+  echo "  es GET '/_resolve/index/*?expand_wildcards=all'   # index names + aliases"
+  echo "  es GET /my-index/_count"
+  echo "  es POST /my-index/_search -d '{\"query\":{\"match_all\":{}}}'"
+  echo "  es POST /_query -d @query.json"
+  echo "POST is allowed only to read endpoints (_search, _count, _query, _sql, _analyze, ...)."
+  echo "The test key has index read only: _cat/*, _mapping and GET / return 403."
+  echo "  Instead: _resolve/index for names/aliases, _count or a terms agg on _index"
+  echo "  for doc counts, _field_caps?fields=* for fields and types."
+  echo "Cluster: \$ES_TEST_URL (default https://es-main.test.noxtua.dev)"
+}
+
+if [[ $# -lt 2 ]]; then
+  usage
+  exit 1
+fi
+
+method=$(tr '[:lower:]' '[:upper:]' <<< "$1")
+path="$2"
+shift 2
+
+[[ "$path" == /* ]] || path="/$path"
+url="${ES_TEST_URL:-https://es-main.test.noxtua.dev}"
+
+if [[ -z "$ES_TEST_API_KEY" ]]; then
+  echo "Error: ES_TEST_API_KEY is not set" >&2
+  exit 1
+fi
+
+# Endpoints that only read even though they take a POST body
+read_post='(^|/)(_search(/scroll|/template)?|_msearch(/template)?|_count|_mget|_analyze|_explain(/[^/]+)?|_validate/query|_field_caps|_termvectors(/[^/]+)?|_mtermvectors|_query(/async)?|_sql(/translate)?|_rank_eval|_has_privileges|_pit|_render/template)$'
+
+case "$method" in
+  GET|HEAD) ;;
+  POST)
+    if [[ ! "${path%%\?*}" =~ $read_post ]]; then
+      echo "Error: POST $path is not a read endpoint - refused" >&2
+      exit 1
+    fi
+    ;;
+  *)
+    echo "Error: method $method is not allowed (read-only client)" >&2
+    exit 1
+    ;;
+esac
+
+head_flag=()
+[[ "$method" == HEAD ]] && head_flag=(--head)
+
+# Default to JSON unless the caller sets their own Content-Type; sending both
+# makes Elasticsearch reject the request with a 406.
+ctype=(-H 'Content-Type: application/json')
+shopt -s nocasematch
+for arg in "$@"; do
+  [[ "$arg" =~ ^[[:space:]]*content-type[[:space:]]*: ]] && ctype=() && break
+done
+shopt -u nocasematch
+
+curl -sS -X "$method" "${head_flag[@]}" \
+  -K <(printf 'header = "Authorization: ApiKey %s"\n' "$ES_TEST_API_KEY") \
+  "${ctype[@]}" \
+  "$url$path" "$@"
+echo
