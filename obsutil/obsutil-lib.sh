@@ -6,9 +6,9 @@
 #
 # Naming convention:
 # - Public "pseudo-commands" meant to be typed interactively are kebab-case:
-#   obsutil-default-profile and obsutil-bucket/obsket (functions, defined in
-#   obsutil-init.sh), obsutil-manage and obsutil-preview (plain executables
-#   on $PATH).
+#   obsutil-default-profile and obsutil-bucket (functions, defined in
+#   obsutil-init.sh), obsutil-manage, obsutil-preview and bin/obsket (plain
+#   executables on $PATH).
 # - Internal helper functions (everything else, including in this file) are
 #   snake_case.
 

@@ -6,9 +6,9 @@
 #
 # obsutil-manage and obsutil-preview are plain executables on $PATH (see
 # ~/.obsutil added to PATH in zshrc) and need no wrapper here, except the
-# obsprv short name below. obsutil-default-profile and obsutil-bucket/obsket
-# are defined as functions, since the former exports vars into this session
-# and can't do that as a subprocess.
+# obsprv short name below. obsket is bin/obsket on $PATH. obsutil-default-profile
+# and obsutil-bucket are defined as functions, since the former exports vars
+# into this session and can't do that as a subprocess.
 
 source "$HOME/.obsutil/obsutil-lib.sh"
 
@@ -103,14 +103,11 @@ obsutil-bucket() {
   "$OBSUTIL_CONFIG_DIR/obsutil-bucket.sh" "$@"
 }
 
-# obsket: short name for obsutil-bucket, defined as a real function (not a
-# shell alias) so it behaves consistently wherever functions are expected
-obsket() {
-  obsutil-bucket "$@"
-}
+# obsket (short name for obsutil-bucket) is the executable bin/obsket, not a
+# function here, so non-interactive shells can run it without sourcing this.
 
-# obsprv: short name for obsutil-preview, a function for the same reason as
-# obsket above
+# obsprv: short name for obsutil-preview, defined as a real function (not a
+# shell alias) so it behaves consistently wherever functions are expected
 obsprv() {
   "$OBSUTIL_CONFIG_DIR/obsutil-preview" "$@"
 }

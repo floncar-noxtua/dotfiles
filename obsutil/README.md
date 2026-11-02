@@ -62,7 +62,8 @@ obsket other-profile ls
 ### obsutil-bucket (short name: `obsket`)
 
 Smart wrapper that intelligently manages bucket access with different profiles.
-`obsket` is a real shell function (defined in `obsutil-init.sh`), not a shell alias.
+`obsket` is a real executable (`bin/obsket`, on `$PATH` via zshrc) that sources
+`obsutil-init.sh` itself, so it works in non-interactive shells with no `source` first.
 
 **Syntax:**
 ```bash
@@ -270,9 +271,10 @@ Are you sure you want to delete profile 'old-profile'? (yes/no): yes
 ```
 ~/.obsutil/
 ├── README.md              # This file
-├── obsutil-init.sh        # Initialization - loads obsutil-default-profile/obsdef/obsutil-bucket/obsket/obsprv
+├── obsutil-init.sh        # Initialization - loads obsutil-default-profile/obsdef/obsutil-bucket/obsprv
+├── bin/obsket             # Short name for obsutil-bucket (run directly via $PATH)
 ├── obsutil-manage         # Profile management CLI (run directly via $PATH)
-├── obsutil-bucket.sh      # Smart bucket wrapper script (run via the obsutil-bucket/obsket functions)
+├── obsutil-bucket.sh      # Smart bucket wrapper script (run via obsutil-bucket or obsket)
 ├── obsutil-preview        # Download+preview a single object in nvim (run directly via $PATH, or via obsprv)
 ├── obsutil-lib.sh         # Shared constants and helpers
 ├── profiles.yaml.gpg     # Your encrypted profiles (created on first use)

@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# obsket: short name for obsutil-bucket as a real executable on $PATH, so
+# non-interactive shells (scripts, agents, worktree sessions) can run
+# `obsket ls obs://...` without sourcing obsutil-init.sh first.
+
+source "$HOME/.obsutil/obsutil-init.sh"
+
+obsutil-bucket "$@"
