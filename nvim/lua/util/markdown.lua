@@ -105,4 +105,19 @@ function M.follow_link()
   end
 end
 
+--- gx, fixed for local files. The built-in gx finds the link destination but
+--- keeps the <> of a "[x](<path with spaces>)" link, and the system opener
+--- resolves a relative path against Neovim's cwd rather than this file's
+--- folder, so neither kind of link opens. Strip the brackets and anchor
+--- relative paths to the buffer; URLs pass through unchanged.
+function M.open_link()
+  for _, url in ipairs(require("vim.ui")._get_urls()) do
+    url = url:gsub("^<(.*)>$", "%1")
+    if not url:match("^%w+:") and not vim.startswith(url, "/") then
+      url = vim.fs.joinpath(vim.fn.expand("%:p:h"), url)
+    end
+    vim.ui.open(url)
+  end
+end
+
 return M
