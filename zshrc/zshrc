@@ -1,4 +1,4 @@
-export PATH="$HOME/.local/bin:$HOME/.obsutil:$HOME/.obsutil/bin:$PATH"
+export PATH="$HOME/.local/bin:$PATH"
 
 # vi-style line editing
 set -o vi
@@ -6,15 +6,10 @@ set -o vi
 # prompt: green user@host, blue folder, % turns red when the last command failed
 PROMPT='%F{green}%n@mbp%f %F{blue}%1~%f %(?.%F{white}.%F{red})%#%f '
 
-# obsutil profile management - load functions and aliases
-# (obsutil-manage, obsutil-preview and obsket are plain executables on the PATH above)
-[ -f "$HOME/.obsutil/obsutil-init.sh" ] && source "$HOME/.obsutil/obsutil-init.sh"
-
 # misc convenience aliases
 alias lg="lazygit"
 alias ca="$HOME/dotfiles/bin/agentenv agents"
 alias agentenv="$HOME/dotfiles/bin/agentenv"
-
 
 # xml formatting
 alias format-xml="$HOME/dotfiles/bin/format-xml"
