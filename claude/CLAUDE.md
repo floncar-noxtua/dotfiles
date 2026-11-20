@@ -27,3 +27,6 @@
 - Recovery when a stacked branch carries an already-squash-merged parent: `git rebase --onto origin/main <last commit of the parent on this branch>`, then `git push --force-with-lease`. After that, check for lines the parent changed in its final pushed version that the child was never rebased onto (diff the old local parent tip against the parent PR's `headRefOid`).
 - The auto-mode classifier blocks `gh stack link` and force-pushes. Ask me to run them with `! <command>`.
 
+## Sidequests
+
+- When you notice something in code worth doing that the current goal does not need (bug, perf, missing test, refactor, security smell), park it with `sidequest add` (see the `sidequest` skill) and carry on. Do not fix, investigate or expand on it unless I ask.
