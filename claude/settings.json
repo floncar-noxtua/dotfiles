@@ -1,0 +1,77 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(~/.config/nvim/**)",
+      "Bash(ast-grep:*)"
+    ]
+  },
+  "model": "opus",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/ask-on-hf-token.sh"
+          },
+          {
+            "type": "command",
+            "command": "python3 -I ~/.claude/hooks/ask-on-obs-write.py",
+            "onFailure": "block"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "idle_prompt",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "terminal-notifier -title 'Claude Code' -message 'Claude Code is ready for input' -activate 'com.mitchellh.ghostty'"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.local/bin/sidequest hook session-start"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.local/bin/sidequest hook stop"
+          }
+        ]
+      }
+    ]
+  },
+  "worktree": {
+    "bgIsolation": "none"
+  },
+  "enabledPlugins": {
+    "agent-skills@addy-agent-skills": true,
+    "cc-plugin-diff@builtin": true
+  },
+  "extraKnownMarketplaces": {
+    "addy-agent-skills": {
+      "source": {
+        "source": "github",
+        "repo": "addyosmani/agent-skills"
+      }
+    }
+  },
+  "feedbackDrafts": "off",
+  "theme": "auto",
+  "editorMode": "vim",
+  "autoCompactEnabled": true
+}
