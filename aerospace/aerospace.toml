@@ -218,15 +218,15 @@ gaps.outer.right =      0
     alt-shift-l = ['join-with right', 'mode main']
 
 [workspace-to-monitor-force-assignment]
-    1 = ['DELL']
-    2 = ['DELL']
-    3 = ['DELL']
-    4 = ['DELL']
+    1 = ['DELL', 'Q27G4ZR']
+    2 = ['DELL', 'Q27G4ZR']
+    3 = ['DELL', 'Q27G4ZR']
+    4 = ['DELL', 'Q27G4ZR']
 
-    7 = ['DELL']
-    8 = ['DELL']
-    9 = ['DELL']
-    10 = ['DELL']
+    7 = ['DELL', 'Q27G4ZR']
+    8 = ['DELL', 'Q27G4ZR']
+    9 = ['DELL', 'Q27G4ZR']
+    10 = ['DELL', 'Q27G4ZR']
 
 # Window mappings
 [[on-window-detected]]
