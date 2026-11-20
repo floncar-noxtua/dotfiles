@@ -18,3 +18,12 @@
 - The endpoint is always `https://obs.eu-de.otc.t-systems.com`. `<BUCKET>` is the bucket name upper-cased with hyphens (and dots) turned into underscores: `data-ai-internal` -> `OBS_DATA_AI_INTERNAL_ACCESS_KEY_ID`.
 - Before running, check both env vars are set without printing their values. If one is missing, tell me which one - do not guess or fall back to another bucket's keys.
 - Only copy from source buckets - never write, move or delete unless I ask.
+
+## Stacked PRs
+
+- Use GitHub native stacks via `gh stack` (github/gh-stack). Run `gh stack <cmd> --help` for flags.
+- A stack is tracked **locally** (`gh stack init <b1> <b2> ...` or `gh stack add <branch>`) and on GitHub. `gh stack link <stack#> <pr#|branch>` only adds a PR to the GitHub stack UI. It creates no local tracking, so `gh stack rebase`/`sync` can't manage that branch. A PR base set with `gh pr create --base` alone is in neither. Check with `gh stack view`. "not part of a stack" means no local tracking.
+- Never rebase stacked branches by hand. Lower PRs are squash-merged, and the squash gets a new SHA, so a hand rebase replays the parent's original commits onto main and conflicts. A hand rebase also gives the parent new SHAs, so the child no longer shares commits with the pushed parent. Use `gh stack rebase` (whole stack), `--upstack` (current branch and everything above it, after editing a middle branch), or `gh stack sync` after a lower PR merges. Then `gh stack push`.
+- Recovery when a stacked branch carries an already-squash-merged parent: `git rebase --onto origin/main <last commit of the parent on this branch>`, then `git push --force-with-lease`. After that, check for lines the parent changed in its final pushed version that the child was never rebased onto (diff the old local parent tip against the parent PR's `headRefOid`).
+- The auto-mode classifier blocks `gh stack link` and force-pushes. Ask me to run them with `! <command>`.
+

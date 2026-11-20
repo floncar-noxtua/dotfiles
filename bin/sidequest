@@ -1,0 +1,404 @@
+#!/usr/bin/env python3
+"""Park code findings that are worth doing but off the current task's critical path.
+
+Store: ~/.sidequests/<repo>/<id>.md, a local git repo committed on every write.
+The id is the file name (a slug of the name); created/updated are ISO timestamps.
+Repo, branch, commit, dirty state and a code excerpt are filled in automatically.
+
+  sidequest add --name "Pool size hard-coded" --where src/db.py:42 \\
+      --kind perf --sev med --while "Fix token expiration bug" <<'EOF'
+  ## Saw
+  ...
+  EOF
+  sidequest ls [--all] [--status open|done|dropped|stale|any] [--kind K] [--sev S]
+  sidequest show <id> | note <id> | done <id> | drop <id> | pick <id> | check
+  sidequest hook session-start|stop      (called by Claude Code hooks)
+
+<id> may be given as <id> (current repo) or <repo>/<id>.
+"""
+
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+from datetime import datetime
+from pathlib import Path
+
+STORE = Path(os.environ.get("SIDEQUEST_STORE", Path.home() / ".sidequests"))
+STATE = STORE / ".state"  # per-session bookkeeping for hooks, gitignored
+KINDS = ["bug", "perf", "refactor", "test-gap", "security", "docs", "cleanup"]
+SEVS = ["low", "med", "high"]
+STATUSES = ["open", "done", "dropped", "stale"]
+FIELDS = ["id", "name", "status", "kind", "severity", "repo", "branch", "commit",
+          "dirty", "where", "found_while", "created", "updated"]
+EXCERPT_RADIUS = 3
+
+
+def now():
+    return datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def die(msg):
+    print(f"sidequest: {msg}", file=sys.stderr)
+    sys.exit(1)
+
+
+def git(*args, cwd=None):
+    r = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True)
+    return r.stdout.strip() if r.returncode == 0 else None
+
+
+# ---------- store ----------
+
+def ensure_store():
+    if (STORE / ".git").exists():
+        return
+    STORE.mkdir(parents=True, exist_ok=True)
+    (STORE / ".gitignore").write_text(".state/\n")
+    (STORE / "README.md").write_text(
+        "# Sidequests\n\nCode findings agents parked because they were off the critical "
+        "path of their task.\nManaged by `sidequest` (~/dotfiles/bin/sidequest); one file "
+        "per finding under `<repo>/`.\n")
+    git("init", "-q", cwd=STORE)
+    commit_store("init store")
+
+
+def commit_store(msg):
+    git("add", "-A", cwd=STORE)
+    subprocess.run(["git", "commit", "-q", "-m", msg], cwd=STORE, capture_output=True)
+
+
+# ---------- repo context ----------
+
+def repo_ctx(cwd=None):
+    top = git("rev-parse", "--show-toplevel", cwd=cwd)
+    if not top:
+        return None
+    url = git("remote", "get-url", "origin", cwd=top)
+    if url:
+        name = re.sub(r"\.git$", "", url.rstrip("/")).split("/")[-1].split(":")[-1]
+    else:
+        # worktree without remote: use the main checkout's directory name
+        common = git("rev-parse", "--path-format=absolute", "--git-common-dir", cwd=top)
+        name = Path(common).parent.name if common else Path(top).name
+    return {
+        "top": top,
+        "repo": name,
+        "branch": git("branch", "--show-current", cwd=top) or "(detached)",
+        "commit": git("rev-parse", "--short", "HEAD", cwd=top) or "(none)",
+        "dirty": bool(git("status", "--porcelain", cwd=top)),
+    }
+
+
+# ---------- file format ----------
+
+def dump(meta, body):
+    lines = ["---"]
+    for k in FIELDS:
+        if k in meta:
+            v = meta[k]
+            lines.append(f"{k}: {json.dumps(v) if isinstance(v, str) else json.dumps(v)}")
+    lines.append("---")
+    return "\n".join(lines) + "\n" + body.rstrip() + "\n"
+
+
+def load(path):
+    text = path.read_text()
+    m = re.match(r"---\n(.*?)\n---\n(.*)", text, re.S)
+    if not m:
+        return {}, text
+    meta = {}
+    for line in m.group(1).splitlines():
+        k, _, v = line.partition(": ")
+        try:
+            meta[k] = json.loads(v)
+        except json.JSONDecodeError:
+            meta[k] = v
+    return meta, m.group(2)
+
+
+def save(path, meta, body, msg):
+    meta["updated"] = now()
+    path.write_text(dump(meta, body))
+    commit_store(msg)
+
+
+def slugify(name):
+    s = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+    return s[:60].rstrip("-") or "sidequest"
+
+
+def all_items(repo=None):
+    dirs = [STORE / repo] if repo else [d for d in STORE.iterdir()
+                                        if d.is_dir() and not d.name.startswith(".")]
+    for d in dirs:
+        if d.is_dir():
+            for f in sorted(d.glob("*.md")):
+                meta, body = load(f)
+                yield f, meta, body
+
+
+def resolve(ref):
+    if "/" in ref:
+        path = STORE / f"{ref}.md"
+    else:
+        ctx = repo_ctx()
+        if not ctx:
+            die("not in a git repo; use <repo>/<id>")
+        path = STORE / ctx["repo"] / f"{ref}.md"
+    if not path.exists():
+        die(f"no sidequest {ref}")
+    return path
+
+
+# ---------- excerpt ----------
+
+def parse_where(where, top):
+    """path:LINE, path:A-B or path::symbol -> (repo-relative path, anchor)."""
+    m = re.match(r"(.+?)(?:::(.+)|:(\d+)(?:-(\d+))?)?$", where)
+    raw, symbol, a, b = m.groups()
+    p = Path(raw)
+    p = (Path.cwd() / p).resolve() if not p.is_absolute() else p
+    try:
+        rel = p.relative_to(Path(top).resolve())
+    except ValueError:
+        rel = p
+    return p, rel, symbol, int(a) if a else None, int(b) if b else None
+
+
+def excerpt(where, top):
+    p, rel, symbol, a, b = parse_where(where, top)
+    if not p.is_file():
+        return str(rel) + (f"::{symbol}" if symbol else f":{a}" if a else ""), None
+    lines = p.read_text(errors="replace").splitlines()
+    if symbol:
+        hit = next((i for i, l in enumerate(lines) if symbol in l), None)
+        if hit is None:
+            return f"{rel}::{symbol}", None
+        a = b = hit + 1
+    if not a:
+        return str(rel), None
+    b = b or a
+    lo, hi = max(1, a - EXCERPT_RADIUS), min(len(lines), b + EXCERPT_RADIUS)
+    snippet = "\n".join(lines[lo - 1:hi])
+    anchor = f"{rel}::{symbol}" if symbol else f"{rel}:{a}" + (f"-{b}" if b != a else "")
+    return anchor, (lo, hi, snippet)
+
+
+# ---------- commands ----------
+
+def cmd_add(args):
+    ctx = repo_ctx()
+    if not ctx:
+        die("not inside a git repo")
+    body = sys.stdin.read() if not sys.stdin.isatty() else ""
+    if not body.strip():
+        die("describe the finding on stdin (## Saw / ## Why it matters / ## Idea (unverified))")
+    ensure_store()
+    rdir = STORE / ctx["repo"]
+    rdir.mkdir(exist_ok=True)
+
+    anchor, ex = excerpt(args.where, ctx["top"])
+    path_part = anchor.split("::")[0].split(":")[0]
+    dupes = [(m["id"], m.get("name", "")) for _, m, _ in all_items(ctx["repo"])
+             if m.get("status") == "open" and m.get("where", "").startswith(path_part)]
+
+    slug = slugify(args.name)
+    sid, n = slug, 2
+    while (rdir / f"{sid}.md").exists():
+        sid, n = f"{slug}-{n}", n + 1
+
+    if ex:
+        lo, hi, snippet = ex
+        fence = "````" if "```" in snippet else "```"
+        body = (body.rstrip() + f"\n\n## Evidence\n`{path_part}` lines {lo}-{hi} at "
+                f"{ctx['commit']}{' (uncommitted changes present)' if ctx['dirty'] else ''}:\n\n"
+                f"{fence}\n{snippet}\n{fence}\n")
+    ts = now()
+    meta = {"id": sid, "name": args.name, "status": "open", "kind": args.kind,
+            "severity": args.sev, "repo": ctx["repo"], "branch": ctx["branch"],
+            "commit": ctx["commit"], "dirty": ctx["dirty"], "where": anchor,
+            "found_while": args.found_while, "created": ts}
+    path = rdir / f"{sid}.md"
+    save(path, meta, body, f"add {ctx['repo']}/{sid}")
+    print(f"parked {ctx['repo']}/{sid}  ({path})")
+    if not ex:
+        print("  note: no excerpt captured (give path:LINE or path::symbol)")
+    for d, name in dupes:
+        print(f"  possible duplicate: {d}  {name}  -> `sidequest note {d}` to append instead")
+
+
+def cmd_ls(args):
+    if not STORE.exists():
+        return
+    repo = None
+    if not args.all:
+        ctx = repo_ctx()
+        repo = ctx["repo"] if ctx else None
+    rows = []
+    for _, m, _ in all_items(repo):
+        if args.status != "any" and m.get("status") != args.status:
+            continue
+        if args.kind and m.get("kind") != args.kind:
+            continue
+        if args.sev and m.get("severity") != args.sev:
+            continue
+        rows.append(m)
+    rows.sort(key=lambda m: m.get("created", ""))
+    for m in rows:
+        rid = f"{m['repo']}/{m['id']}" if args.all or not repo else m["id"]
+        print(f"{m.get('created', '')[:19]}  {m.get('severity', ''):4} {m.get('kind', ''):9} "
+              f"{rid}  {m.get('name', '')}  [{m.get('where', '')}]"
+              + (f"  ({m['status']})" if args.status == "any" else ""))
+
+
+def cmd_show(args):
+    print(resolve(args.id).read_text(), end="")
+
+
+def cmd_note(args):
+    path = resolve(args.id)
+    meta, body = load(path)
+    text = sys.stdin.read() if not sys.stdin.isatty() else ""
+    if not text.strip():
+        die("note text on stdin")
+    ctx = repo_ctx()
+    where = f" on {ctx['branch']}@{ctx['commit']}" if ctx else ""
+    body = body.rstrip() + f"\n\n## Note {now()}{where}\n{text.strip()}\n"
+    save(path, meta, body, f"note {meta['repo']}/{meta['id']}")
+    print(f"noted {meta['repo']}/{meta['id']}")
+
+
+def set_status(status):
+    def run(args):
+        path = resolve(args.id)
+        meta, body = load(path)
+        meta["status"] = status
+        if args.reason:
+            body = body.rstrip() + f"\n\n## {status.capitalize()} {now()}\n{args.reason}\n"
+        save(path, meta, body, f"{status} {meta['repo']}/{meta['id']}")
+        print(f"{status} {meta['repo']}/{meta['id']}")
+    return run
+
+
+def cmd_pick(args):
+    path = resolve(args.id)
+    meta, body = load(path)
+    print(f"""Goal: resolve sidequest {meta['repo']}/{meta['id']} - {meta['name']}.
+
+It was parked on branch {meta['branch']} at commit {meta['commit']} while working on:
+"{meta['found_while']}". The code may have moved since; first confirm the problem still
+exists at {meta['where']}. Treat "Idea (unverified)" as a hint, not a plan.
+
+Done when: <state the acceptance check - a test, command or observable behaviour>.
+When finished run `sidequest done {meta['repo']}/{meta['id']} --reason "<what changed>"`.
+
+--- sidequest ---
+{body.strip()}""")
+
+
+def cmd_check(args):
+    ctx = repo_ctx()
+    if not ctx:
+        die("run inside the repo to check")
+    for path, m, body in all_items(ctx["repo"]):
+        if m.get("status") != "open":
+            continue
+        rel = m.get("where", "").split("::")[0].split(":")[0]
+        f = Path(ctx["top"]) / rel
+        snip = re.search(r"\n(`{3,4})\n(.*?)\n\1\n", body, re.S)
+        if not f.is_file():
+            verdict = "file gone"
+        elif snip and snip.group(2).strip() not in f.read_text(errors="replace"):
+            verdict = "excerpt changed"
+        else:
+            print(f"ok     {m['id']}")
+            continue
+        print(f"stale? {m['id']}  ({verdict})")
+        if args.mark:
+            m["status"] = "stale"
+            save(path, m, body + f"\n## Stale {now()}\n{verdict} at {ctx['commit']}\n",
+                 f"stale {m['repo']}/{m['id']}")
+
+
+# ---------- hooks ----------
+
+def cmd_hook(args):
+    """Never fail a session: any error -> silent exit 0."""
+    try:
+        data = json.load(sys.stdin)
+        sid, cwd = data.get("session_id", "unknown"), data.get("cwd") or os.getcwd()
+        ctx = repo_ctx(cwd)
+        if not ctx or not STORE.exists():
+            return
+        STATE.mkdir(parents=True, exist_ok=True)
+        # {"since": session start, "reported": ids already announced by a stop hook}
+        mark = STATE / f"{re.sub(r'[^A-Za-z0-9_-]', '_', sid)}.json"
+        items = [m for _, m, _ in all_items(ctx["repo"]) if m.get("status") == "open"]
+        if args.event == "session-start":
+            mark.write_text(json.dumps({"since": now(), "reported": []}))
+            if items:
+                print(f"{len(items)} open sidequest(s) parked for {ctx['repo']} "
+                      f"(`sidequest ls`). Do not work on them unless asked.")
+        elif args.event == "stop":
+            st = json.loads(mark.read_text()) if mark.exists() else {"since": now(), "reported": []}
+            new = [m for m in items if m.get("created", "") >= st["since"]
+                   and m["id"] not in st["reported"]]
+            st["reported"] += [m["id"] for m in new]
+            mark.write_text(json.dumps(st))
+            if new:
+                names = "; ".join(f"{m['id']} ({m['severity']})" for m in new)
+                print(json.dumps({"systemMessage": f"Parked {len(new)} sidequest(s): {names}"}))
+    except Exception:
+        pass
+
+
+def main():
+    p = argparse.ArgumentParser(prog="sidequest", description=__doc__,
+                                formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    a = sub.add_parser("add", help="park a finding (body on stdin)")
+    a.add_argument("--name", required=True, help="one-line title; the id is its slug")
+    a.add_argument("--where", required=True, help="path:LINE, path:A-B or path::symbol")
+    a.add_argument("--kind", required=True, choices=KINDS)
+    a.add_argument("--sev", required=True, choices=SEVS)
+    a.add_argument("--while", dest="found_while", required=True,
+                   help="the goal you were working on when you found it")
+    a.set_defaults(fn=cmd_add)
+
+    l = sub.add_parser("ls", help="list sidequests of the current repo")
+    l.add_argument("--all", action="store_true", help="all repos")
+    l.add_argument("--status", default="open", choices=STATUSES + ["any"])
+    l.add_argument("--kind", choices=KINDS)
+    l.add_argument("--sev", choices=SEVS)
+    l.set_defaults(fn=cmd_ls)
+
+    for name, fn, h in [("show", cmd_show, "print one sidequest"),
+                        ("note", cmd_note, "append a note (stdin)"),
+                        ("pick", cmd_pick, "print a prompt to start working on it")]:
+        s = sub.add_parser(name, help=h)
+        s.add_argument("id")
+        s.set_defaults(fn=fn)
+    for status in ["done", "dropped"]:
+        s = sub.add_parser("done" if status == "done" else "drop", help=f"mark {status}")
+        s.add_argument("id")
+        s.add_argument("--reason", default="")
+        s.set_defaults(fn=set_status(status))
+
+    c = sub.add_parser("check", help="flag open items whose excerpt no longer matches the code")
+    c.add_argument("--mark", action="store_true", help="set status: stale on mismatches")
+    c.set_defaults(fn=cmd_check)
+
+    h = sub.add_parser("hook", help="Claude Code hook entry point (JSON on stdin)")
+    h.add_argument("event", choices=["session-start", "stop"])
+    h.set_defaults(fn=cmd_hook)
+
+    args = p.parse_args()
+    args.fn(args)
+
+
+if __name__ == "__main__":
+    main()
