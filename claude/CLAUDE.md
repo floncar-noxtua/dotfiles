@@ -30,3 +30,7 @@
 ## Sidequests
 
 - When you notice something in code worth doing that the current goal does not need (bug, perf, missing test, refactor, security smell), park it with `sidequest add` (see the `sidequest` skill) and carry on. Do not fix, investigate or expand on it unless I ask.
+
+## Claude config
+
+- `~/.claude/CLAUDE.md`, `settings.json`, `hooks/*` and `skills/*` are symlinks into `~/dotfiles/claude/`. Edit them there. Create a new skill in `~/dotfiles/claude/skills/<name>/` and symlink it with `ln -s ~/dotfiles/claude/skills/<name> ~/.claude/skills/<name>`. `~/.claude/skills/synced` is not in dotfiles - leave it alone.
