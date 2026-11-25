@@ -47,3 +47,13 @@ vim.api.nvim_create_user_command("PRDiff", function()
   f:close()
   vim.cmd("DiffviewOpen origin/" .. base .. "...HEAD")
 end, {})
+
+-- LazyVim's lazyvim_wrap_spell turns wrap back on for text, markdown and
+-- gitcommit buffers. Replace it to keep spell but leave nowrap from options.lua.
+vim.api.nvim_create_autocmd("FileType", {
+  group = vim.api.nvim_create_augroup("lazyvim_wrap_spell", { clear = true }),
+  pattern = { "text", "plaintex", "typst", "gitcommit", "markdown" },
+  callback = function()
+    vim.opt_local.spell = true
+  end,
+})

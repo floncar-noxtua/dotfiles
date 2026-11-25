@@ -6,3 +6,6 @@
 -- lines (linematch) - default diffopt only highlights whole changed lines.
 vim.opt.diffopt:append("algorithm:histogram")
 vim.opt.diffopt:append("linematch:60")
+
+-- Don't soft-wrap long lines.
+vim.opt.wrap = false
