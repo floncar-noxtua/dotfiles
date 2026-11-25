@@ -7,3 +7,5 @@ macos-option-as-alt = true
 # no reload needed -- and notifies tmux/nvim via DEC mode 2031 when it does.
 # Switch light/dark in System Settings > Appearance (or set it to Auto).
 theme = light:Modus Operandi Tinted,dark:Catppuccin Frappe
+# Small gap between the text and the left/right window edges.
+window-padding-x = 12
