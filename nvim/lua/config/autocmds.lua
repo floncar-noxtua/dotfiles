@@ -57,3 +57,54 @@ vim.api.nvim_create_autocmd("FileType", {
     vim.opt_local.spell = true
   end,
 })
+
+-- Dim the editor while its tmux pane is unfocused. tmux shades inactive panes
+-- (tmux/theme-*.conf), but Nvim paints its own background over that, so it
+-- darkens itself instead: every group that uses Normal's background gets a
+-- darker one on FocusLost and its original definition back on FocusGained.
+-- Needs `focus-events on` in tmux.
+local FOCUS_DIM = 0.1 -- fraction to darken by
+
+local function darken(rgb)
+  local function ch(shift)
+    return math.floor(bit.band(bit.rshift(rgb, shift), 0xff) * (1 - FOCUS_DIM) + 0.5)
+  end
+  return bit.bor(bit.lshift(ch(16), 16), bit.lshift(ch(8), 8), ch(0))
+end
+
+local dimmed -- name -> original definition, while unfocused
+
+local function undim()
+  for name, def in pairs(dimmed or {}) do
+    vim.api.nvim_set_hl(0, name, def)
+  end
+  dimmed = nil
+end
+
+local function dim()
+  if dimmed then
+    return
+  end
+  local bg = vim.api.nvim_get_hl(0, { name = "Normal" }).bg
+  if not bg then
+    return
+  end
+  dimmed = {}
+  for name, def in pairs(vim.api.nvim_get_hl(0, {})) do
+    if def.bg == bg and not def.link then
+      dimmed[name] = def
+      vim.api.nvim_set_hl(0, name, vim.tbl_extend("force", def, { bg = darken(bg) }))
+    end
+  end
+end
+
+local focus_group = vim.api.nvim_create_augroup("focus_dim", { clear = true })
+vim.api.nvim_create_autocmd("FocusLost", { group = focus_group, callback = dim })
+vim.api.nvim_create_autocmd("FocusGained", { group = focus_group, callback = undim })
+-- A colorscheme load replaces every group, so the saved originals are stale.
+vim.api.nvim_create_autocmd("ColorScheme", {
+  group = focus_group,
+  callback = function()
+    dimmed = nil
+  end,
+})
