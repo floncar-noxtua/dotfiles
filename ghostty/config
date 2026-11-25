@@ -7,5 +7,10 @@ macos-option-as-alt = true
 # no reload needed -- and notifies tmux/nvim via DEC mode 2031 when it does.
 # Switch light/dark in System Settings > Appearance (or set it to Auto).
 theme = light:Modus Operandi Tinted,dark:Catppuccin Frappe
-# Small gap between the text and the left/right window edges.
+# Small gap between the text and the window edges. More on top than bottom:
+# each row already leaves room under the text for descenders (g, p, y), which
+# the tmux status bar in the last row rarely uses, so equal values look
+# bottom-heavy.
 window-padding-x = 12
+window-padding-y = 12,4
+window-padding-balance = true
