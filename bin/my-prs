@@ -1,0 +1,27 @@
+#!/bin/bash
+# List my open PRs as markdown tables, one per repo under xaynetwork.
+# Usage: my-prs [repo ...]   (default: data-pipeline experimental)
+# The output is raw markdown; pipe it to a renderer such as `glow -` to view it.
+set -euo pipefail
+
+repos=("$@")
+[ ${#repos[@]} -eq 0 ] && repos=(data-pipeline experimental)
+
+template='{{range .}}| [#{{.number}}]({{.url}}) | {{if .isDraft}}[draft] {{end}}{{.title}} | {{.baseRefName}} | {{if .isDraft}}—{{else if eq .reviewDecision "APPROVED"}}**approved**{{else if eq .reviewDecision "REVIEW_REQUIRED"}}review required{{else if eq .reviewDecision "CHANGES_REQUESTED"}}changes requested{{else}}none yet{{end}} | {{timeago .updatedAt}} |
+{{end}}'
+
+for r in "${repos[@]}"; do
+  rows=$(gh pr list -R "xaynetwork/$r" --author @me --state open \
+    --json number,title,baseRefName,isDraft,reviewDecision,updatedAt,url \
+    --template "$template")
+  echo "**$r**"
+  echo
+  if [ -z "$rows" ]; then
+    echo "_No open PRs._"
+  else
+    echo "| PR | Title | Base | Review | Updated |"
+    echo "|---|---|---|---|---|"
+    printf '%s\n' "$rows"
+  fi
+  echo
+done

@@ -1,0 +1,6 @@
+#!/bin/bash
+# Open my open PRs (see my-prs) in nvim as rendered markdown.
+# Usage: my-prs-nvim [repo ...]   (arguments are passed to my-prs)
+set -euo pipefail
+
+my-prs "$@" | nvim -c 'set ft=markdown' -c 'RenderMarkdown enable' -
