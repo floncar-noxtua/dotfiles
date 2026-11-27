@@ -34,6 +34,52 @@ end
 
 local toggle_keymap = { "n", "<leader>dm", toggle_old_pane, { desc = "Diffview: minimize/restore old pane" } }
 
+-- Sum the additions/deletions of every file below a "directory" component,
+-- appending the totals to each directory row it passes, collapsed or not.
+local function add_dir_stats(comp)
+  if comp.name == "file" then
+    local stats = comp.context.stats
+    if stats and stats.additions then
+      return stats.additions, stats.deletions or 0
+    end
+    return nil
+  end
+
+  local add, del
+  for _, child in ipairs(comp.components or {}) do
+    local a, d = add_dir_stats(child)
+    if a then
+      add, del = (add or 0) + a, (del or 0) + d
+    end
+  end
+
+  -- A directory renders its row into its first child ("dir_name"), one line.
+  local row = comp.name == "directory" and comp.components[1]
+  if add and row and #row.lines == 1 then
+    local line = row.lines[1]
+    local a_txt, d_txt = " " .. add, tostring(del)
+    row:add_hl("DiffviewFilePanelInsertions", 0, #line, #line + #a_txt)
+    row:add_hl("DiffviewFilePanelDeletions", 0, #line + #a_txt + 2, #line + #a_txt + 2 + #d_txt)
+    row.lines[1] = line .. a_txt .. ", " .. d_txt
+  end
+  return add, del
+end
+
+-- diffview renders folder rows in a local function, so wrap the whole render
+-- module (FilePanel:render requires it on every call) and post-process.
+local function patch_dir_stats()
+  local mod = "diffview.scene.views.diff.render"
+  local render = require(mod)
+  package.loaded[mod] = function(panel)
+    render(panel)
+    if panel.render_data then
+      for _, comp in ipairs(panel.render_data.components) do
+        add_dir_stats(comp)
+      end
+    end
+  end
+end
+
 return {
   {
     "sindrets/diffview.nvim",
@@ -45,5 +91,9 @@ return {
         file_history_panel = { toggle_keymap },
       },
     },
+    config = function(_, opts)
+      require("diffview").setup(opts)
+      patch_dir_stats()
+    end,
   },
 }
