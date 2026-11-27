@@ -43,6 +43,10 @@ return {
   -- startup picks the variant matching whatever the terminal already reported.
   { "LazyVim/LazyVim", opts = { colorscheme = pick } },
 
+  -- The colorscheme's lualine theme with its darker fill moved onto the editor
+  -- background (lua/lualine/themes/editor_bg.lua).
+  { "nvim-lualine/lualine.nvim", opts = { options = { theme = "editor_bg" } } },
+
   -- bufferline paints its own highlights and repaints them on ColorScheme, but
   -- by default ('themable' = true) it defines them with :highlight default, so
   -- the repaint cannot overwrite groups that already exist. They do already

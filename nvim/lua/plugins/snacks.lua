@@ -19,6 +19,30 @@ return {
           explorer = {
             hidden = true,
             ignored = true,
+            -- Draw the tree on the editor background instead of NormalFloat's
+            -- darker one. Snacks merges user `win.*.wo` under its own
+            -- winhighlight, and the layout rebuilds each pane's options from
+            -- layout.win_opts on every update, so the override goes on once the
+            -- windows exist and into win_opts so it survives resizes.
+            on_show = function(picker)
+              local to_editor = { Normal = "Normal", NormalNC = "Normal", NormalFloat = "Normal" }
+              local function apply(win, saved)
+                for _, opts in ipairs({ win.opts, saved }) do
+                  if opts then
+                    opts.wo = opts.wo or {}
+                    opts.wo.winhighlight = Snacks.util.winhl(opts.wo.winhighlight or "", to_editor)
+                  end
+                end
+                if win:valid() then
+                  Snacks.util.wo(win.win, { winhighlight = win.opts.wo.winhighlight })
+                end
+              end
+              local layout = picker.layout
+              apply(layout.root)
+              for name, win in pairs(layout.wins) do
+                apply(win, layout.win_opts[name])
+              end
+            end,
           },
           files = {
             hidden = true,
